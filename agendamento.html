@@ -1,0 +1,364 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+  <meta charset="UTF-8" />
+  <title>AGENDAMENTO - MÓVEIS SIMONETTI</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+  <!-- Bibliotecas -->
+  <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+  <script src="https://cdn.datatables.net/1.13.4/js/jquery.dataTables.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
+
+  <!-- CSS do DataTables -->
+  <link rel="stylesheet" href="https://cdn.datatables.net/1.13.4/css/jquery.dataTables.min.css" />
+
+  <style>
+    :root {
+      --cor-fundo-dashboard: #330000;
+      --cor-cabecalho: linear-gradient(90deg, #b30000, #800000);
+      --cor-texto-cabecalho: #ffffff;
+      --cor-linha-par: #4d0000;
+      --cor-linha-impar: #3a0000;
+      --cor-filtro: #660000;
+    }
+
+    body {
+      font-family: 'Segoe UI', sans-serif;
+      background-color: var(--cor-fundo-dashboard);
+      color: white;
+      padding: 10px;
+      margin: 0;
+    }
+
+    header {
+      text-align: center;
+      margin-bottom: 20px;
+    }
+
+    h1 {
+      color: white;
+      font-size: 6vw;
+      margin: 10px 0 20px 0;
+    }
+
+    @media (min-width: 768px) {
+      h1 {
+        font-size: 28px;
+      }
+    }
+
+    /* Container com scroll horizontal */
+    .table-container {
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+      border: 1px solid #660000;
+      border-radius: 6px;
+      margin-top: 10px;
+    }
+
+    table {
+      border-collapse: collapse;
+      font-size: 13px;
+      width: 100%;
+      min-width: 800px;
+    }
+
+    thead tr th {
+      background: var(--cor-cabecalho);
+      color: var(--cor-texto-cabecalho);
+      padding: 8px 12px;
+      text-align: center;
+      font-weight: bold;
+      white-space: nowrap;
+    }
+
+    tbody tr:nth-child(even) {
+      background-color: var(--cor-linha-par);
+    }
+
+    tbody tr:nth-child(odd) {
+      background-color: var(--cor-linha-impar);
+    }
+
+    td, th {
+      border: 1px solid #444;
+      box-shadow: inset 0 0 3px rgba(0,0,0,0.4);
+    }
+    td {
+      padding: 8px 12px;
+      border-bottom: 1px solid #444;
+      white-space: nowrap;
+      text-align: center;
+    }
+
+    /* Filtros */
+    .filter-select {
+      width: 100%;
+      min-width: 70px;
+      padding: 6px 8px;
+      font-size: 13px;
+      background: var(--cor-filtro);
+      border: none;
+      border-radius: 4px;
+      color: #eee;
+      text-align: center;
+      box-sizing: border-box;
+    }
+
+    /* Botão compartilhar */
+    .menu {
+      position: relative;
+      display: inline-block;
+      margin-bottom: 10px;
+    }
+    .menu button {
+      background: #007bff;
+      color: #fff;
+      border: none;
+      padding: 8px 12px;
+      border-radius: 5px;
+      cursor: pointer;
+      font-size: 14px;
+    }
+    .menu-content {
+      display: none;
+      position: absolute;
+      background: #fff;
+      color: #333;
+      box-shadow: 0px 4px 8px rgba(0,0,0,0.1);
+      z-index: 1;
+      min-width: 150px;
+    }
+    .menu-content a {
+      display: block;
+      padding: 10px;
+      text-decoration: none;
+      color: #333;
+    }
+    .menu-content a:hover {
+      background: #f1f1f1;
+    }
+    .menu:hover .menu-content {
+      display: block;
+    }
+  </style>
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#b30000">
+  <link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
+  <link rel="apple-touch-icon" href="icon-512.png">
+</head>
+<body>
+
+  <header>
+    <h1>AGENDAMENTO - MÓVEIS SIMONETTI</h1>
+  </header>
+
+  <!-- Botão Compartilhar -->
+  <div class="menu">
+    <button>📤 Compartilhar</button>
+    <div class="menu-content">
+      <a href="#" onclick="exportarPDF()">Exportar PDF</a>
+      <a href="#" onclick="exportarExcel()">Exportar Excel</a>
+    </div>
+  </div>
+
+  <div class="table-container">
+    <table id="planilha" class="display nowrap">
+      <thead>
+        <tr class="headers"></tr>
+        <tr class="filters"></tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+  </div>
+
+  <script>
+    const sheetID = "13HL_sWY8BOIoJml3WOMqL-FqDazMgrPDIIoNnJey8ss";
+    const gidPinheiros = "0";
+    const gidSerra = "1527150749";
+
+    const urls = [
+      `https://docs.google.com/spreadsheets/d/${sheetID}/export?format=csv&gid=${gidPinheiros}`,
+      `https://docs.google.com/spreadsheets/d/${sheetID}/export?format=csv&gid=${gidSerra}`
+    ];
+
+    let allData = [];
+    let colunas = [];
+
+    function carregarDados(url, callback) {
+      Papa.parse(url, {
+        download: true,
+        header: true,
+        complete: function(results) {
+          if (colunas.length === 0) {
+            colunas = results.meta.fields;
+          }
+          allData = allData.concat(results.data);
+          callback();
+        }
+      });
+    }
+
+    function inicializarTabela() {
+      if (allData.length === 0) return;
+
+      const headerRow = document.querySelector("#planilha thead tr.headers");
+      const filterRow = document.querySelector("#planilha thead tr.filters");
+      const tableBody = document.querySelector("#planilha tbody");
+
+      colunas.forEach(col => {
+        headerRow.innerHTML += `<th>${col}</th>`;
+        filterRow.innerHTML += `<th><select class="filter-select"><option value="">Filtrar</option></select></th>`;
+      });
+
+      allData.forEach(row => {
+        let rowHtml = "<tr>";
+        colunas.forEach(col => {
+          rowHtml += `<td>${row[col] || ""}</td>`;
+        });
+        rowHtml += "</tr>";
+        tableBody.innerHTML += rowHtml;
+      });
+
+      const table = $("#planilha").DataTable({
+        paging: false,
+        searching: true,
+        info: false,
+        scrollX: true,
+        autoWidth: false,
+        language: {
+          search: "Buscar:",
+          zeroRecords: "Nenhum registro encontrado",
+          infoEmpty: "Nenhum dado disponível",
+        }
+      });
+
+      table.columns().every(function (i) {
+        const column = this;
+        const select = $(filterRow).find("select").eq(i);
+        column.data().unique().sort().each(function (d) {
+          if (d) select.append(`<option value="${d}">${d}</option>`);
+        });
+        select.on("change", function () {
+          const val = $.fn.dataTable.util.escapeRegex($(this).val());
+          column.search(val ? "^" + val + "$" : "", true, false).draw();
+        });
+      });
+    }
+
+    carregarDados(urls[0], function() {
+      carregarDados(urls[1], inicializarTabela);
+    });
+
+    // Exportar para PDF (ignora linha de filtros)
+    function exportarPDF() {
+      const { jsPDF } = window.jspdf;
+      const doc = new jsPDF('landscape');
+
+      doc.text("Relatório de Agendamento", 14, 10);
+
+      // Cabeçalho real
+      const headerCols = [];
+      document.querySelectorAll("#planilha thead tr.headers th").forEach(th => {
+        headerCols.push(th.innerText);
+      });
+
+      // Dados
+      const rows = [];
+      document.querySelectorAll("#planilha tbody tr").forEach(tr => {
+        const row = [];
+        tr.querySelectorAll("td").forEach(td => row.push(td.innerText));
+        rows.push(row);
+      });
+
+      doc.autoTable({
+        head: [headerCols],
+        body: rows,
+        startY: 20,
+        styles: {
+          fontSize: 9,
+          cellPadding: 3,
+          overflow: 'linebreak',
+          halign: 'center',
+          valign: 'middle'
+        },
+        headStyles: {
+          fillColor: [179, 0, 0],
+          textColor: [255, 255, 255],
+          fontSize: 10
+        },
+        bodyStyles: {
+          fontSize: 9
+        }
+      });
+
+      const dataHoje = new Date().toLocaleDateString('pt-BR');
+      doc.save(`agendamento_${dataHoje}.pdf`);
+    }
+
+    // Exportar para Excel (ignora linha de filtros)
+    function exportarExcel() {
+      const headerCols = [];
+      document.querySelectorAll("#planilha thead tr.headers th").forEach(th => {
+        headerCols.push(th.innerText);
+      });
+
+      const rows = [];
+      document.querySelectorAll("#planilha tbody tr").forEach(tr => {
+        const row = [];
+        tr.querySelectorAll("td").forEach(td => row.push(td.innerText));
+        rows.push(row);
+      });
+
+      const ws_data = [headerCols, ...rows];
+      const wb = XLSX.utils.book_new();
+      const ws = XLSX.utils.aoa_to_sheet(ws_data);
+      XLSX.utils.book_append_sheet(wb, ws, "Agendamento");
+
+      const dataHoje = new Date().toLocaleDateString('pt-BR').replace(/\//g, '-');
+      XLSX.writeFile(wb, `agendamento_${dataHoje}.xlsx`);
+    }
+  </script>
+
+  <button id="installBtn" style="
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    background: #b30000;
+    color: white;
+    border: none;
+    padding: 12px 16px;
+    border-radius: 8px;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.4);
+    cursor: pointer;
+    font-size: 14px;
+    display: none;
+    z-index: 1000;
+  ">📲 Instalar App</button>
+
+  <script>
+    if ("serviceWorker" in navigator) {
+      navigator.serviceWorker.register("./service-worker.js");
+    }
+    let deferredPrompt;
+    const installBtn = document.getElementById("installBtn");
+    window.addEventListener("beforeinstallprompt", (e) => {
+      e.preventDefault();
+      deferredPrompt = e;
+      installBtn.style.display = "block";
+    });
+    installBtn.addEventListener("click", async () => {
+      installBtn.style.display = "none";
+      if (deferredPrompt) {
+        deferredPrompt.prompt();
+        const { outcome } = await deferredPrompt.userChoice;
+        deferredPrompt = null;
+      }
+    });
+  </script>
+</body>
+</html>
